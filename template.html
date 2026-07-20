@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>食堂あさごはん レシピ検索</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="apple-touch-icon.png">
+<style>
+:root {
+  --bg: #faf8f5;
+  --card: #ffffff;
+  --text: #2b2b2b;
+  --sub: #767066;
+  --accent: #c96f2e;
+  --accent-soft: #fdeee0;
+  --border: #e8e2d9;
+  --mark: #ffe28a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1b1917;
+    --card: #262320;
+    --text: #ece8e2;
+    --sub: #a49d92;
+    --accent: #e8944f;
+    --accent-soft: #3a2d20;
+    --border: #3a3530;
+    --mark: #8a6a1a;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+  line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+}
+header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 12px 8px;
+}
+.inner { max-width: 720px; margin: 0 auto; }
+h1 { font-size: 1.05rem; margin: 0 0 8px; }
+#q {
+  width: 100%;
+  font-size: 16px; /* iOS Safariのズーム防止 */
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--text);
+  outline: none;
+}
+#q:focus { border-color: var(--accent); }
+#stat { font-size: 0.8rem; color: var(--sub); margin-top: 6px; min-height: 1.2em; }
+main { max-width: 720px; margin: 0 auto; padding: 12px; }
+.card {
+  display: grid;
+  grid-template-columns: 136px 1fr;
+  gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+@media (max-width: 420px) {
+  .card { grid-template-columns: 118px 1fr; }
+}
+.thumb { position: relative; display: block; align-self: start; }
+.thumb img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+  background: var(--border);
+}
+.dur {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  background: rgba(0,0,0,.75);
+  color: #fff;
+  font-size: 0.68rem;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+.title {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  display: block;
+}
+.title:active { color: var(--accent); }
+.meta { font-size: 0.75rem; color: var(--sub); margin-top: 2px; }
+.hits { grid-column: 1 / -1; border-top: 1px dashed var(--border); padding-top: 6px; }
+.hit {
+  display: block;
+  text-decoration: none;
+  color: var(--text);
+  font-size: 0.82rem;
+  padding: 5px 8px;
+  border-radius: 8px;
+  margin-bottom: 2px;
+}
+a.hit:active, a.hit:hover { background: var(--accent-soft); }
+.time {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.78rem;
+  margin-right: 6px;
+  white-space: nowrap;
+}
+.label {
+  color: var(--sub);
+  font-size: 0.72rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 4px;
+  margin-right: 6px;
+  white-space: nowrap;
+}
+.morehits { font-size: 0.75rem; color: var(--sub); padding: 2px 8px; }
+mark { background: var(--mark); color: inherit; border-radius: 2px; padding: 0 1px; }
+#more {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  font-size: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--accent);
+  cursor: pointer;
+  margin: 4px 0 16px;
+}
+#empty { text-align: center; color: var(--sub); padding: 40px 0; }
+footer {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--sub);
+  padding: 8px 0 32px;
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="inner">
+    <h1>🍳 食堂あさごはん レシピ検索</h1>
+    <input type="search" id="q" placeholder="食材名で検索(例: 厚揚げ 小松菜)"
+           autocomplete="off" autocapitalize="off" enterkeyhint="search">
+    <div id="stat"></div>
+  </div>
+</header>
+<main>
+  <div id="results"></div>
+  <button id="more" hidden></button>
+  <div id="empty" hidden>見つかりませんでした</div>
+</main>
+<footer id="foot"></footer>
+<script>
+const DATA = __DATA_JSON__;
+</script>
+<script>
+"use strict";
+const videos = DATA.videos;
+const PAGE = 60;          // 一度に描画する件数
+const MAX_EXCERPTS = 6;   // 1動画あたりの抜粋表示数
+const CTX = 22;           // 抜粋の前後文字数
+
+// カタカナ→ひらがな、全角英数→半角、英大文字→小文字 (すべて1文字→1文字の変換で
+// 元テキストと文字位置が一致するようにしている)
+function fold(s) {
+  return s
+    .replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60))
+    .replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/[A-Z]/g, c => c.toLowerCase())
+    .replace(/　/g, " ");
+}
+
+// 前処理: 字幕全文を連結し、文字位置→再生時刻の対応表を作る
+for (const v of videos) {
+  let joined = "";
+  const offs = [];
+  for (const s of v.segments) { offs.push([joined.length, s.start]); joined += s.text; }
+  v._joined = joined;
+  v._offs = offs;
+  v._njoined = fold(joined);
+  v._ntitle = fold(v.title);
+  v._ndesc = fold(v.description || "");
+}
+
+function timeAt(v, pos) {
+  const offs = v._offs;
+  let lo = 0, hi = offs.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (offs[mid][0] <= pos) lo = mid; else hi = mid - 1;
+  }
+  return offs.length ? offs[lo][1] : 0;
+}
+
+function fmtTime(sec) {
+  sec = Math.floor(sec);
+  const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  const mm = String(m).padStart(2, "0"), ss = String(s).padStart(2, "0");
+  return h ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function findIntervals(ntext, terms) {
+  const iv = [];
+  for (const t of terms) {
+    let i = 0;
+    while ((i = ntext.indexOf(t, i)) !== -1 && iv.length < 60) { iv.push([i, i + t.length]); i += t.length; }
+  }
+  iv.sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const [s, e] of iv) {
+    if (merged.length && s <= merged[merged.length - 1][1]) {
+      merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], e);
+    } else merged.push([s, e]);
+  }
+  return merged;
+}
+
+// terms にマッチする部分を <mark> で強調した DOM 断片を返す
+function markup(text, terms) {
+  const frag = document.createDocumentFragment();
+  if (!terms.length) { frag.appendChild(document.createTextNode(text)); return frag; }
+  let last = 0;
+  for (const [s, e] of findIntervals(fold(text), terms)) {
+    if (s > last) frag.appendChild(document.createTextNode(text.slice(last, s)));
+    frag.appendChild(el("mark", null, text.slice(s, e)));
+    last = e;
+  }
+  frag.appendChild(document.createTextNode(text.slice(last)));
+  return frag;
+}
+
+function searchVideo(v, terms) {
+  for (const t of terms) {
+    if (!v._ntitle.includes(t) && !v._ndesc.includes(t) && !v._njoined.includes(t)) return null;
+  }
+  const titleHit = terms.some(t => v._ntitle.includes(t));
+  // 字幕内のヒット位置を収集
+  const positions = [];
+  for (const t of terms) {
+    let i = 0, c = 0;
+    while ((i = v._njoined.indexOf(t, i)) !== -1 && c < 15) { positions.push([i, t.length]); i += t.length; c++; }
+  }
+  positions.sort((a, b) => a[0] - b[0]);
+  const excerpts = [];
+  let total = 0, lastPos = -1e9;
+  for (const [p, len] of positions) {
+    if (p - lastPos < CTX) continue; // 近接ヒットはまとめる
+    lastPos = p;
+    total++;
+    if (excerpts.length < MAX_EXCERPTS) {
+      const s = Math.max(0, p - CTX), e = Math.min(v._joined.length, p + len + CTX + 4);
+      excerpts.push({ time: timeAt(v, p), text: v._joined.slice(s, e) });
+    }
+  }
+  // 説明欄のヒット抜粋(最初の1箇所)
+  let descEx = null;
+  for (const t of terms) {
+    const i = v._ndesc.indexOf(t);
+    if (i !== -1) {
+      const s = Math.max(0, i - CTX), e = Math.min(v.description.length, i + t.length + CTX + 4);
+      descEx = v.description.slice(s, e).replace(/\s+/g, " ");
+      break;
+    }
+  }
+  return { v, titleHit, excerpts, total, descEx };
+}
+
+function card(res, terms) {
+  const v = res.v;
+  const url = `https://youtu.be/${v.video_id}`;
+  const c = el("article", "card");
+
+  const a = el("a", "thumb");
+  a.href = url; a.target = "_blank"; a.rel = "noopener";
+  const img = el("img");
+  img.loading = "lazy";
+  img.src = `https://i.ytimg.com/vi/${v.video_id}/mqdefault.jpg`;
+  img.alt = "";
+  a.appendChild(img);
+  if (v.duration) a.appendChild(el("span", "dur", fmtTime(v.duration)));
+
+  const info = el("div", "info");
+  const ta = el("a", "title");
+  ta.href = url; ta.target = "_blank"; ta.rel = "noopener";
+  ta.appendChild(markup(v.title, terms));
+  const dateStr = v.upload_date ? v.upload_date.replaceAll("-", "/") : "";
+  info.appendChild(ta);
+  const notes = (v.no_captions ? " ・字幕なし" : "") +
+    (v.caption_lang === "ja-en" ? " ・字幕は自動翻訳" : "");
+  info.appendChild(el("div", "meta", dateStr + notes));
+  c.appendChild(a);
+  c.appendChild(info);
+
+  if (terms.length && (res.excerpts.length || res.descEx)) {
+    const hits = el("div", "hits");
+    if (res.descEx) {
+      const d = el("div", "hit");
+      d.appendChild(el("span", "label", "説明欄"));
+      d.appendChild(markup(res.descEx, terms));
+      hits.appendChild(d);
+    }
+    for (const ex of res.excerpts) {
+      const h = el("a", "hit");
+      h.href = `${url}?t=${Math.max(0, Math.floor(ex.time) - 2)}`;
+      h.target = "_blank"; h.rel = "noopener";
+      h.appendChild(el("span", "time", "▶ " + fmtTime(ex.time)));
+      h.appendChild(markup(ex.text, terms));
+      hits.appendChild(h);
+    }
+    if (res.total > res.excerpts.length) {
+      hits.appendChild(el("div", "morehits", `ほか ${res.total - res.excerpts.length} 箇所でヒット`));
+    }
+    c.appendChild(hits);
+  }
+  return c;
+}
+
+const $q = document.getElementById("q");
+const $results = document.getElementById("results");
+const $stat = document.getElementById("stat");
+const $more = document.getElementById("more");
+const $empty = document.getElementById("empty");
+
+let pending = [], pendingTerms = [], shown = 0;
+
+function renderMore() {
+  const slice = pending.slice(shown, shown + PAGE);
+  const frag = document.createDocumentFragment();
+  for (const res of slice) frag.appendChild(card(res, pendingTerms));
+  $results.appendChild(frag);
+  shown += slice.length;
+  const rest = pending.length - shown;
+  $more.hidden = rest <= 0;
+  if (rest > 0) $more.textContent = `さらに表示 (残り ${rest} 本)`;
+}
+
+function run() {
+  const terms = fold($q.value.trim()).split(/\s+/).filter(Boolean);
+  let items;
+  if (!terms.length) {
+    items = videos.map(v => ({ v, titleHit: false, excerpts: [], total: 0, descEx: null }));
+    $stat.textContent = `全 ${videos.length} 本`;
+  } else {
+    items = [];
+    for (const v of videos) {
+      const r = searchVideo(v, terms);
+      if (r) items.push(r);
+    }
+    // タイトルヒットを先頭に、それ以外は新しい順(元の並びが新しい順)
+    items.sort((a, b) => (b.titleHit - a.titleHit));
+    $stat.textContent = `${items.length} 本ヒット / 全 ${videos.length} 本`;
+  }
+  pending = items; pendingTerms = terms; shown = 0;
+  $results.textContent = "";
+  $empty.hidden = items.length > 0;
+  renderMore();
+}
+
+let timer = null;
+$q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(run, 150); });
+$q.addEventListener("search", run);
+$more.addEventListener("click", renderMore);
+
+document.getElementById("foot").textContent =
+  `データ更新日 ${DATA.updated} ・ ${videos.length} 本収録`;
+run();
+</script>
+</body>
+</html>
