@@ -1,24 +1,19 @@
 ■■■ 食堂あさごはん レシピ検索 運用メモ ■■■
 
 場所: デスクトップ\Claude\recipe-search\
-公開ページ: https://＜ユーザー名＞.github.io/recipe-search/
-
-※このプロジェクトは「手動アップロード」運用。
-  (shiroのくらし側はワンクリック自動化済み。こちらも自動化したくなったらClaudeに相談)
+公開ページ: https://y-l-glitch.github.io/syokudouasagohan-syokuzai-recipe/
+GitHubリポジトリ: https://github.com/y-l-glitch/syokudouasagohan-syokuzai-recipe
 
 
-●ふだんの更新(新着動画を反映したいとき)
+●更新は自動(基本なにもしなくてよい)
 
-  1. このフォルダで「collect.py」を実行する:
+  毎月1日の朝9時に、タスクスケジューラ「レシピ検索の月次更新」が
+  新着動画の取得→GitHubへの反映まで自動でやってくれる。
+  (その時間にPCが起きていなければ、次にPCを起動したときに実行される)
 
-       python collect.py
+  すぐ更新したいときだけ「更新してアップロード.bat」をダブルクリック。
 
-     (新着動画の字幕を取得して index.html が新しくなる)
-
-  2. GitHubのリポジトリページを開く
-  3. Add file → Upload files に index.html をドラッグ&ドロップ
-  4. 緑の「Commit changes」ボタンを押す
-  5. 1〜2分後に公開ページへ反映される
+  自動実行の記録は update-log.txt に残る。
 
 
 ●ホーム画面のアイコン画像を変えたいとき
@@ -26,9 +21,9 @@
   1. 新しい画像を用意する
      ・PNG形式・正方形(180×180ピクセル以上)
      ・ファイル名は必ず「apple-touch-icon.png」(半角英数)にする
-  2. GitHubのリポジトリページ → Add file → Upload files で
-     apple-touch-icon.png をアップロード(同名なので自動上書き)
-  3. iPhone側で反映させる:
+  2. このフォルダの同名ファイルに上書きコピーする
+  3. 「更新してアップロード.bat」をダブルクリック
+  4. iPhone側で反映させる:
      ・ホーム画面の古いアイコンを長押し→削除
      ・数分待ってからSafariでページを開き直す
      ・共有ボタン→「ホーム画面に追加」
@@ -43,13 +38,26 @@
 
     python collect.py --retry-nosubs
 
-  その後は上の「ふだんの更新」の手順2〜4でアップロードする。
-  (字幕なし扱いの動画を全部再チェックするので30分くらいかかる)
+  その後「更新してアップロード.bat」で公開ページにも反映される。
+
+
+●うまくいかないとき
+
+  ・pushに失敗する
+    →ネット接続を確認。直らなければClaudeに「レシピ検索のpushが失敗する」と相談
+  ・自動更新が動いた形跡がない
+    →update-log.txt の日付を確認。なければタスクスケジューラで
+      「レシピ検索の月次更新」があるか確認、なければClaudeに相談
 
 
 ●各ファイルの役割
 
-  collect.py           … 字幕収集スクリプト本体
-  template.html        … ページの見た目の雛形(デザイン変更はここ)
-  index.json           … 収集済みデータ(消すと全動画を取り直しになるので注意)
-  index.html           … 完成品(自動生成されるので直接編集しない)
+  更新してアップロード.bat … 手動でいますぐ更新したいとき用
+  update.ps1             … 上のbatの本体(画面表示部分)
+  自動更新.bat            … タスクスケジューラ用(さわらない)
+  collect.py             … 字幕収集スクリプト本体
+  template.html          … ページの見た目の雛形(デザイン変更はここ)
+  index.json             … 収集済みデータ(消すと全動画を取り直しになるので注意)
+  index.html             … 完成品(自動生成されるので直接編集しない)
+  apple-touch-icon.png   … ホーム画面用アイコン画像
+  update-log.txt         … 自動更新の実行記録
