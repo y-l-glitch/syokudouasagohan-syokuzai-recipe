@@ -182,6 +182,27 @@ def fetch_video(video_id, tmpdir):
     return rec
 
 
+def fetch_meta(video_id):
+    """字幕エンドポイントに触れず、タイトル・説明欄などのメタデータだけ取得する。
+    レート制限中でも比較的通りやすく、新規動画を即座に検索対象へ加えられる。
+    字幕は未取得なので caption_429 として後日リトライ対象に残す。"""
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    opts = {"quiet": True, "no_warnings": True, "noprogress": True,
+            "skip_download": True}
+    with YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+    return {
+        "video_id": video_id,
+        "title": info.get("title") or "",
+        "upload_date": fmt_date(info.get("upload_date")),
+        "duration": info.get("duration") or 0,
+        "description": info.get("description") or "",
+        "segments": [],
+        "no_captions": True,
+        "caption_429": True,
+    }
+
+
 def build_html(index):
     with open(TEMPLATE_PATH, encoding="utf-8") as f:
         tpl = f.read()
@@ -211,6 +232,10 @@ def main():
                     help="字幕なし扱いの動画を再チェックする")
     ap.add_argument("--rebuild-only", action="store_true",
                     help="取得を行わず index.html だけ再生成する")
+    ap.add_argument("--meta-only", action="store_true",
+                    help="字幕エンドポイントに触れず、新規動画のタイトル・説明欄だけ"
+                         "索引化する(レート制限中でも検索対象に加えられる。字幕は"
+                         "caption_429として後日リトライされる)")
     args = ap.parse_args()
 
     index = load_index()
@@ -228,9 +253,16 @@ def main():
     for e in listing:
         v = known.get(e["id"])
         if v is None:
-            targets.append(e)
+            targets.append(e)                    # 未取得の新規動画
+        elif args.meta_only:
+            continue                             # meta-only は新規動画のみ対象
+        elif v.get("caption_429"):
+            targets.append(e)                    # レート制限で保留中 → 毎回リトライして自己修復
         elif args.retry_nosubs and v.get("no_captions"):
-            targets.append(e)
+            targets.append(e)                    # 字幕なし全件の再チェック(--retry-nosubs 指定時のみ)
+    # 未取得の新規動画を先頭に。限られた取得枠を、まだ検索対象に入っていない
+    # 動画に優先して使う(429保留の再取得より新規のメタデータ確保を優先)
+    targets.sort(key=lambda e: 0 if known.get(e["id"]) is None else 1)
     if args.limit:
         targets = targets[: args.limit]
     print(f"今回取得: {len(targets)}本 (取得済み {len(listing) - len(targets)}本はスキップ)\n")
@@ -242,7 +274,7 @@ def main():
         for i, e in enumerate(targets, 1):
             vid = e["id"]
             try:
-                rec = fetch_video(vid, tmpdir)
+                rec = fetch_meta(vid) if args.meta_only else fetch_video(vid, tmpdir)
                 consecutive_429 = 0
             except DownloadError as err:
                 msg = str(err)
@@ -254,7 +286,7 @@ def main():
                     print(f"  429を検出。60秒待機してリトライします…")
                     time.sleep(60)
                     try:
-                        rec = fetch_video(vid, tmpdir)
+                        rec = fetch_meta(vid) if args.meta_only else fetch_video(vid, tmpdir)
                         consecutive_429 = 0
                     except DownloadError as err2:
                         errors.append((vid, e["title"], str(err2).splitlines()[0]))
@@ -274,7 +306,10 @@ def main():
             known[rec["video_id"]] = rec
             save_index(index)
 
-            mark = "字幕なし" if rec.get("no_captions") else f"{len(rec['segments'])}区間"
+            if args.meta_only:
+                mark = "メタのみ(字幕は後日)"
+            else:
+                mark = "字幕なし" if rec.get("no_captions") else f"{len(rec['segments'])}区間"
             print(f"[{i}/{len(targets)}] {rec['title'][:40]}  ({mark})")
 
             if i < len(targets):
